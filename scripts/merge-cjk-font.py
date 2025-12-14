@@ -9,6 +9,7 @@ from fontTools.subset import Subsetter, Options
 ASCII_BASIC = set(range(0x20, 0x7F))
 LATIN_1_SUP = set(range(0x00A0, 0x0100))
 
+GENERAL_PUNCT = (0x2000, 0x206F)
 CJK_PUNCT = (0x3000, 0x303F)
 HIRAGANA  = (0x3040, 0x309F)
 KATAKANA  = (0x30A0, 0x30FF)
@@ -209,6 +210,8 @@ def build_target(args):
 
     if args.add_latin1:
         target.update(LATIN_1_SUP)
+    if args.add_general_punct:
+        add_range(target, *GENERAL_PUNCT)
     if args.add_cjk_punct:
         add_range(target, *CJK_PUNCT)
     if args.add_jp_syllabaries:
@@ -294,6 +297,8 @@ def main():
                           "Example: latin,zh-tw,zh-cn,ja."))
 
     ap.add_argument("--add-latin1", action="store_true")
+    ap.add_argument("--add-general-punct", action="store_true",
+                    help="Include general punctuation (U+2000-U+206F).")
     ap.add_argument("--add-cjk-punct", action="store_true")
     ap.add_argument("--add-jp-syllabaries", action="store_true")
     ap.add_argument("--add-halfwidth", action="store_true")

@@ -26,6 +26,7 @@ python3 merge-cjk-font.py \
     --zh-cn NotoSerifSC-Light.ttf \
     --zh-tw NotoSerifTC-Light.ttf \
     --add-latin1 \
+    --add-general-punct \
     --add-cjk-punct \
     --add-jp-syllabaries \
     --add-halfwidth \
