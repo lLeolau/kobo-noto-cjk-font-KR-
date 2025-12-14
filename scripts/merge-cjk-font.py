@@ -9,6 +9,7 @@ from fontTools.subset import Subsetter, Options
 ASCII_BASIC = set(range(0x20, 0x7F))
 LATIN_1_SUP = set(range(0x00A0, 0x0100))
 
+GENERAL_PUNCT = (0x2000, 0x206F)
 CJK_PUNCT = (0x3000, 0x303F)
 HIRAGANA  = (0x3040, 0x309F)
 KATAKANA  = (0x30A0, 0x30FF)
@@ -209,6 +210,8 @@ def build_target(args):
 
     if args.add_latin1:
         target.update(LATIN_1_SUP)
+    if args.add_general_punct:
+        add_range(target, *GENERAL_PUNCT)
     if args.add_cjk_punct:
         add_range(target, *CJK_PUNCT)
     if args.add_jp_syllabaries:
@@ -222,6 +225,33 @@ def build_target(args):
         add_range(target, *CJK_COMPAT)
 
     return target
+
+
+def build_forced_owners(args, order):
+    """Optionally force a subset of codepoints to prefer a specific owner tag.
+
+    This is useful for punctuation: even if Latin fonts are first in the
+    prefer-order, the user can direct the general punctuation block to come
+    from a CJK font so language-specific glyphs (e.g., localized curly quotes)
+    are preserved for Chinese/Japanese text.
+    """
+
+    if not args.general_punct_owner:
+        return {}
+
+    if args.general_punct_owner == "latin":
+        owner_tag = next((t for t in order if t.startswith("latin")), None)
+    elif args.general_punct_owner == "zh":
+        owner_tag = next((t for t in order if t in {"zh-tw", "zh-cn"}), None)
+    else:
+        owner_tag = args.general_punct_owner if args.general_punct_owner in order else None
+
+    if not owner_tag:
+        print("Warning: requested general punctuation owner not present; using prefer order")
+        return {}
+
+    forced = {u: owner_tag for u in range(GENERAL_PUNCT[0], GENERAL_PUNCT[1] + 1)}
+    return forced
 
 def validate_fonts(order, font_map):
     upems = {}
@@ -294,6 +324,10 @@ def main():
                           "Example: latin,zh-tw,zh-cn,ja."))
 
     ap.add_argument("--add-latin1", action="store_true")
+    ap.add_argument("--add-general-punct", action="store_true",
+                    help="Include general punctuation (U+2000-U+206F).")
+    ap.add_argument("--general-punct-owner", choices=["latin", "zh", "zh-tw", "zh-cn", "ja"],
+                    help="Force the general punctuation block to come from a specific font tag.")
     ap.add_argument("--add-cjk-punct", action="store_true")
     ap.add_argument("--add-jp-syllabaries", action="store_true")
     ap.add_argument("--add-halfwidth", action="store_true")
@@ -325,6 +359,7 @@ def main():
     validate_fonts(order, font_map)
 
     target = build_target(args)
+    forced_owners = build_forced_owners(args, order)
 
     support = {tag: get_font_unicode_set(font_map[tag]) for tag in order}
 
@@ -332,11 +367,14 @@ def main():
     unassigned = 0
 
     for u in sorted(target):
-        owner = None
-        for tag in order:
-            if u in support[tag]:
-                owner = tag
-                break
+        owner = forced_owners.get(u)
+        if owner and u not in support.get(owner, ()):  # fallback if owner lacks glyph
+            owner = None
+        if not owner:
+            for tag in order:
+                if u in support[tag]:
+                    owner = tag
+                    break
         if owner:
             assigned[owner].add(u)
         else:

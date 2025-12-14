@@ -26,6 +26,8 @@ python3 merge-cjk-font.py \
     --zh-cn NotoSerifSC-Light.ttf \
     --zh-tw NotoSerifTC-Light.ttf \
     --add-latin1 \
+    --add-general-punct \
+    --general-punct-owner zh \
     --add-cjk-punct \
     --add-jp-syllabaries \
     --add-halfwidth \
@@ -33,3 +35,7 @@ python3 merge-cjk-font.py \
     --drop-tables vhea vmtx \
     --out NotoSerifCJK-Light.ttf
 ```
+
+`--general-punct-owner` can redirect the general punctuation block (U+2000–U+206F)
+to a specific language tag (e.g., `zh` to keep curly quotes from a CJK font while
+leaving Latin elsewhere). If omitted, the normal prefer order is used.
