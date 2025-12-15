@@ -291,7 +291,7 @@ def validate_fonts(order, font_map):
             "Use all-TTF glyf fonts or all-CFF fonts."
         )
 
-    # Optional: warn on variable fonts
+    # Optional: warn on variable fonts (fontTools' merger cannot combine them directly)
     if any(var_flags.values()):
         print("WARNING: One or more inputs are variable fonts. "
               "Use --instance-axis to generate static instances or "
