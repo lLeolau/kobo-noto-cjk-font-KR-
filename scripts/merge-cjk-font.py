@@ -294,7 +294,8 @@ def validate_fonts(order, font_map):
     # Optional: warn on variable fonts
     if any(var_flags.values()):
         print("WARNING: One or more inputs are variable fonts. "
-              "Consider instancing to static fonts before merging.")
+              "Use --instance-axis to generate static instances or "
+              "--allow-variable-output to merge them as variable.")
 
     return var_flags
 
@@ -355,6 +356,8 @@ def main():
     ap.add_argument("--instance-axis", action="append",
                     help="Instance variable fonts to a static axis position, e.g., wght=400. "
                          "Repeat for multiple axes. If omitted, the default axis positions are used.")
+    ap.add_argument("--allow-variable-output", action="store_true",
+                    help="Keep variable fonts variable when no instancing is requested.")
 
     ap.add_argument("--prefer-order", default=None,
                     help=("Priority tags. Use 'latin' to refer to all Latin inputs. "
@@ -430,11 +433,20 @@ def main():
             print("Corpus not provided: using ASCII + any --add-* blocks.")
 
         for tag, path in list(font_map.items()):
-            if var_flags.get(tag):
+            if not var_flags.get(tag):
+                continue
+
+            if axis_values:
                 new_path = instantiate_if_variable(path, axis_values, instanced_dir)
-                if new_path != path:
-                    instanced_paths.add(new_path)
-                    font_map[tag] = new_path
+            elif args.allow_variable_output:
+                print(f"{tag}: variable font kept variable (no instancing requested)")
+                continue
+            else:
+                new_path = instantiate_if_variable(path, {}, instanced_dir)
+
+            if new_path != path:
+                instanced_paths.add(new_path)
+                font_map[tag] = new_path
 
         for tag in order:
             keep = assigned[tag]
