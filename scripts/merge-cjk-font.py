@@ -5,6 +5,7 @@ import tempfile
 import subprocess
 from fontTools.ttLib import TTFont
 from fontTools.subset import Subsetter, Options
+from fontTools.varLib import instancer
 
 ASCII_BASIC = set(range(0x20, 0x7F))
 LATIN_1_SUP = set(range(0x00A0, 0x0100))
@@ -290,10 +291,43 @@ def validate_fonts(order, font_map):
             "Use all-TTF glyf fonts or all-CFF fonts."
         )
 
-    # Optional: warn on variable fonts
+    # Optional: warn on variable fonts (fontTools' merger cannot combine them directly)
     if any(var_flags.values()):
         print("WARNING: One or more inputs are variable fonts. "
-              "Consider instancing to static fonts before merging.")
+              "Use --instance-axis to generate static instances or "
+              "--allow-variable-output to merge them as variable.")
+
+    return var_flags
+
+
+def parse_axis_values(tokens):
+    axis_values = {}
+    for token in tokens or []:
+        if "=" not in token:
+            raise SystemExit(
+                f"Invalid axis setting '{token}'. Use <axis>=<value>, e.g., wght=400"
+            )
+        axis, value = token.split("=", 1)
+        try:
+            axis_values[axis] = float(value)
+        except ValueError:
+            raise SystemExit(f"Invalid axis value '{value}' for axis '{axis}' (must be a number)")
+    return axis_values
+
+
+def instantiate_if_variable(font_path, axis_values, out_dir):
+    font = TTFont(font_path)
+    if "fvar" not in font:
+        font.close()
+        return font_path
+
+    out_path = os.path.join(out_dir, os.path.basename(font_path))
+    print(f"Instancing variable font {font_path} -> {out_path} with axes {axis_values or 'defaults'}")
+    instanced = instancer.instantiateVariableFont(font, axis_values, inplace=False, optimize=True)
+    instanced.save(out_path)
+    instanced.close()
+    font.close()
+    return out_path
 
 def main():
     ap = argparse.ArgumentParser(
@@ -318,6 +352,12 @@ def main():
     ap.add_argument("--out", default="merged_common.ttf")
     ap.add_argument("--out-name", default="Noto Serif CJK", help="Family name of the output font.")
     ap.add_argument("--out-subfamily", default="Light", help="Subfamily name of the output font.")
+
+    ap.add_argument("--instance-axis", action="append",
+                    help="Instance variable fonts to a static axis position, e.g., wght=400. "
+                         "Repeat for multiple axes. If omitted, the default axis positions are used.")
+    ap.add_argument("--allow-variable-output", action="store_true",
+                    help="Keep variable fonts variable when no instancing is requested.")
 
     ap.add_argument("--prefer-order", default=None,
                     help=("Priority tags. Use 'latin' to refer to all Latin inputs. "
@@ -356,7 +396,8 @@ def main():
     if not order:
         raise SystemExit("No valid fonts in prefer order.")
 
-    validate_fonts(order, font_map)
+    var_flags = validate_fonts(order, font_map)
+    axis_values = parse_axis_values(args.instance_axis)
 
     target = build_target(args)
     forced_owners = build_forced_owners(args, order)
@@ -381,13 +422,31 @@ def main():
             unassigned += 1
 
     tmp_dir = tempfile.mkdtemp(prefix="font_dedup_")
+    instanced_dir = tempfile.mkdtemp(prefix="font_instance_")
     subset_paths = []
+    instanced_paths = set()
 
     try:
         print("Prefer order:", ",".join(order))
         print("Target codepoints (pre-font filter):", len(target))
         if not args.corpus:
             print("Corpus not provided: using ASCII + any --add-* blocks.")
+
+        for tag, path in list(font_map.items()):
+            if not var_flags.get(tag):
+                continue
+
+            if axis_values:
+                new_path = instantiate_if_variable(path, axis_values, instanced_dir)
+            elif args.allow_variable_output:
+                print(f"{tag}: variable font kept variable (no instancing requested)")
+                continue
+            else:
+                new_path = instantiate_if_variable(path, {}, instanced_dir)
+
+            if new_path != path:
+                instanced_paths.add(new_path)
+                font_map[tag] = new_path
 
         for tag in order:
             keep = assigned[tag]
@@ -416,8 +475,13 @@ def main():
             for p in subset_paths:
                 if os.path.exists(p):
                     os.remove(p)
+            for p in instanced_paths:
+                if os.path.exists(p):
+                    os.remove(p)
             if os.path.exists(tmp_dir):
                 os.rmdir(tmp_dir)
+            if os.path.exists(instanced_dir):
+                os.rmdir(instanced_dir)
         except Exception:
             pass
 
