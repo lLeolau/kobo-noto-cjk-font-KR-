@@ -1,10 +1,20 @@
 # Noto CJK Font
 
-This package contains a pre-built CJK font [`NotoSerifCJK-Light.ttf`](NotoSerifCJK-Light.ttf). You can use this font to display the common Traditional Chinese, Simplified Chinese and Japanese characters with only one font file. This is particularly useful for Kobo e-readers because its font fallback mechanism is not very good.
+This package contains several pre-built CJK fonts. You can use this font to display the common Traditional Chinese, Simplified Chinese and Japanese characters with only one font file. This is particularly useful for Kobo e-readers because its font fallback mechanism is not very good.
+
+Here is the default fonts in Kobo Libre Color. You can see they have various issues.
+
+| 文鼎明體 | 築紫明朝 | Bitter |
+|-|-|-|
+| ![文鼎明體](docs/文鼎明體.JPEG) | ![築紫明朝](docs/築紫明朝.JPEG) | ![Bitter](docs/Bitter.JPEG) |
+
+Here is the Noto Sans / Serif fonts produced by this script. You can see the display is perfect.
+
+| Noto Sans CJK (Light) | Noto Serif CJK (Light) |
+|-|-|
+| ![Noto Sans](docs/NotoSans.JPEG) | ![Noto Serif](docs/NotoSerif.JPEG) |
 
 Any missing characters can be reported to us ;-)
-
-In addition, this package also contains a tool which can be used to produce the above CJK font file. You can use this tool to produce Sans Serif CJK font.
 
 # Font Installation
 
@@ -14,6 +24,8 @@ If you are using Kobo, you can follow this guide to install the font: https://he
 
 # Script Usage
 
+If you want to produce the CJK font file yourself, you can use the script `merge-cjk-font.py`.
+
 You can install the requirements by running `pip install -r requirements.txt` first.
 
 Then you can run the script to produce the CJK font file that contains the common Chinese, Japanese, and Korean characters.
@@ -21,21 +33,34 @@ Then you can run the script to produce the CJK font file that contains the commo
 This is an example of how to run the script:
 
 ```
-python3 merge-cjk-font.py \
-    --latin NotoSerif-Light.ttf \
-    --zh-cn NotoSerifSC-Light.ttf \
-    --zh-tw NotoSerifTC-Light.ttf \
-    --add-latin1 \
-    --add-general-punct \
-    --general-punct-owner zh \
-    --add-cjk-punct \
-    --add-jp-syllabaries \
-    --add-halfwidth \
-    --add-han-basic \
-    --drop-tables vhea vmtx \
-    --out NotoSerifCJK-Light.ttf
+run() {
+    local serif_or_sans="$1"
+    local weight="$2"
+
+    local dir="${serif_or_sans}-${weight}"
+    merge-cjk-font.py \
+        --latin "${dir}/Noto${serif_or_sans}-${weight}.ttf" \
+        --zh-cn "${dir}/Noto${serif_or_sans}SC-${weight}.ttf" \
+        --zh-tw "${dir}/Noto${serif_or_sans}TC-${weight}.ttf" \
+        --ja "${dir}/Noto${serif_or_sans}JP-${weight}.ttf" \
+        --add-latin1 \
+        --add-general-punct \
+        --general-punct-owner latin \
+        --add-cjk-punct \
+        --add-jp-syllabaries \
+        --add-halfwidth \
+        --add-han-basic \
+        --drop-tables vhea vmtx \
+        --out "Noto${serif_or_sans}CJK-${weight}.ttf" \
+        --out-name "Noto ${serif_or_sans} CJK" \
+        --out-subfamily "${weight}"
+}
+
+# run 'Serif' 'Light'
+# run 'Serif' 'Regular'
+# run 'Sans' 'Light'
+# run 'Sans' 'Regular'
 ```
 
 `--general-punct-owner` can redirect the general punctuation block (U+2000–U+206F)
-to a specific language tag (e.g., `zh` to keep curly quotes from a CJK font while
-leaving Latin elsewhere). If omitted, the normal prefer order is used.
+to a specific language tag (e.g., `latin` to keep curly quotes from a Latin font so that it doesn't occupy additional space). If omitted, the normal prefer order is used.
