@@ -7,6 +7,7 @@ Here is the default fonts in Kobo Libre Color. You can see they have various iss
 | 文鼎明體 | 築紫明朝 | Bitter |
 |-|-|-|
 | ![文鼎明體](docs/文鼎明體.JPEG) | ![築紫明朝](docs/築紫明朝.JPEG) | ![Bitter](docs/Bitter.JPEG) |
+| The apostrophe is full-sized. It makes pure English rendering ugly. | Some Chinese words disappeared completely. | Some Chinese words are missing and leave empty space. |
 
 Here is the Noto Sans / Serif fonts produced by this script. You can see the display is perfect.
 
