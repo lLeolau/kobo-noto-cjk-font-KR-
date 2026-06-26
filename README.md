@@ -1,6 +1,6 @@
 # Noto CJK Font
 
-This package contains several pre-built CJK fonts. You can use this font to display the common Traditional Chinese, Simplified Chinese and Japanese characters with only one font file. This is particularly useful for Kobo e-readers because its font fallback mechanism is not very good.
+This package contains several pre-built CJK fonts. You can use this font to display the common Traditional Chinese, Simplified Chinese, Japanese and now Korean characters with only one font file. This is particularly useful for Kobo e-readers because its font fallback mechanism is not very good.
 
 Here is the default fonts in Kobo Libre Color. You can see they have various issues.
 
@@ -61,6 +61,20 @@ run() {
 # run 'Serif' 'Regular'
 # run 'Sans' 'Light'
 # run 'Sans' 'Regular'
+```
+
+
+# For korean : 
+
+```
+python merge-cjk-font.py `
+  --latin NotoSerif-Regular.ttf `
+  --zh-cn NotoSerifKR-Regular.ttf `
+  --add-latin1 --add-general-punct --general-punct-owner latin `
+  --add-cjk-punct --add-jp-syllabaries --add-halfwidth --add-han-basic --add-hangul `
+  --drop-tables vhea vmtx `
+  --out KoboNotoSerif-Regular.ttf `
+  --out-name "Kobo Noto Serif" --out-subfamily "Regular"
 ```
 
 `--general-punct-owner` can redirect the general punctuation block (U+2000–U+206F)
