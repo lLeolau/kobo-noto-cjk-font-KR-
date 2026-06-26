@@ -20,6 +20,12 @@ CJK_UNIFIED = (0x4E00, 0x9FFF)
 CJK_EXT_A   = (0x3400, 0x4DBF)
 CJK_COMPAT  = (0xF900, 0xFAFF)
 
+# Hangul
+HANGUL_SYLLABLES  = (0xAC00, 0xD7A3)
+HANGUL_JAMO       = (0x1100, 0x11FF)
+HANGUL_COMPAT     = (0x3130, 0x318F)
+HANGUL_JAMO_EXT_B = (0xD7B0, 0xD7FF)
+
 def read_corpus_chars(paths):
     chars = set()
     for p in paths:
@@ -105,12 +111,9 @@ def count_glyphs(font_path):
     return n
 
 def set_font_name(font_path, family_name, subfamily="Regular"):
-    """Update font name table entries."""
     font = TTFont(font_path)
     name_table = font["name"]
 
-    # Try to capture the original family name before mutating records so we can
-    # update variable font specific name IDs that reference it.
     original_family = None
     for record in name_table.names:
         if record.nameID == 1:
@@ -128,7 +131,7 @@ def set_font_name(font_path, family_name, subfamily="Regular"):
 
     version_string = None
     for record in name_table.names:
-        if record.nameID == 5:  # Version string
+        if record.nameID == 5:
             try:
                 version_string = record.toUnicode()
                 break
@@ -137,15 +140,6 @@ def set_font_name(font_path, family_name, subfamily="Regular"):
     if not version_string:
         version_string = f"Version {font['head'].fontRevision:.3f}"
 
-    # Name IDs:
-    #   1=Family
-    #   2=Subfamily
-    #   3=Unique ID
-    #   4=Full Name
-    #   6=PostScript Name
-    #   16=Typographic Family
-    #   17=Typographic Subfamily
-    #   25=Variations PostScript Name Prefix
     name_records = {
         1: family_record,
         2: subfamily,
@@ -163,7 +157,6 @@ def set_font_name(font_path, family_name, subfamily="Regular"):
             if axis.axisNameID is not None:
                 axis_name_ids.add(axis.axisNameID)
 
-    # Update existing records for all platforms/encodings
     for record in name_table.names:
         if record.nameID in name_records:
             try:
@@ -175,7 +168,6 @@ def set_font_name(font_path, family_name, subfamily="Regular"):
                 record_text = record.toUnicode()
             except Exception:
                 record_text = None
-
             if record_text and original_family and original_family in record_text:
                 record.string = record_text.replace(original_family, family_name)
 
@@ -224,19 +216,16 @@ def build_target(args):
         add_range(target, *CJK_UNIFIED)
         add_range(target, *CJK_EXT_A)
         add_range(target, *CJK_COMPAT)
+    if args.add_hangul:
+        add_range(target, *HANGUL_SYLLABLES)
+        add_range(target, *HANGUL_JAMO)
+        add_range(target, *HANGUL_COMPAT)
+        add_range(target, *HANGUL_JAMO_EXT_B)
 
     return target
 
 
 def build_forced_owners(args, order):
-    """Optionally force a subset of codepoints to prefer a specific owner tag.
-
-    This is useful for punctuation: even if Latin fonts are first in the
-    prefer-order, the user can direct the general punctuation block to come
-    from a CJK font so language-specific glyphs (e.g., localized curly quotes)
-    are preserved for Chinese/Japanese text.
-    """
-
     if not args.general_punct_owner:
         return {}
 
@@ -244,6 +233,8 @@ def build_forced_owners(args, order):
         owner_tag = next((t for t in order if t.startswith("latin")), None)
     elif args.general_punct_owner == "zh":
         owner_tag = next((t for t in order if t in {"zh-tw", "zh-cn"}), None)
+    elif args.general_punct_owner == "kr":
+        owner_tag = next((t for t in order if t == "kr"), None)
     else:
         owner_tag = args.general_punct_owner if args.general_punct_owner in order else None
 
@@ -265,7 +256,7 @@ def validate_fonts(order, font_map):
         has_glyf = "glyf" in f
         has_cff  = ("CFF " in f) or ("CFF2" in f)
         if has_glyf and has_cff:
-            outline_kinds.add("mixed-in-one")  # rare but possible
+            outline_kinds.add("mixed-in-one")
         elif has_glyf:
             outline_kinds.add("glyf")
         elif has_cff:
@@ -276,7 +267,6 @@ def validate_fonts(order, font_map):
         var_flags[tag] = ("fvar" in f)
         f.close()
 
-    # Same UPEM required by the merger
     if len(set(upems.values())) > 1:
         msg = ", ".join([f"{t}={u}" for t, u in upems.items()])
         raise SystemExit(
@@ -284,14 +274,12 @@ def validate_fonts(order, font_map):
             f"Found: {msg}"
         )
 
-    # Avoid mixing glyf and CFF/CFF2
     if "glyf" in outline_kinds and "cff" in outline_kinds:
         raise SystemExit(
             "Mixed TrueType (glyf) and CFF/CFF2 inputs. "
             "Use all-TTF glyf fonts or all-CFF fonts."
         )
 
-    # Optional: warn on variable fonts (fontTools' merger cannot combine them directly)
     if any(var_flags.values()):
         print("WARNING: One or more inputs are variable fonts. "
               "Use --instance-axis to generate static instances or "
@@ -338,78 +326,80 @@ def main():
 
     ap.add_argument("--latin", required=True, nargs="+",
                     help="One or more Latin TTFs (coverage sources).")
-    ap.add_argument("--zh-tw", required=True)
-    ap.add_argument("--zh-cn", required=True)
-    ap.add_argument("--ja", default=None)
+    ap.add_argument("--zh-tw", default=None, help="Traditional Chinese TTF (optional).")
+    ap.add_argument("--zh-cn", default=None, help="Simplified Chinese TTF (optional).")
+    ap.add_argument("--ja",    default=None, help="Japanese TTF (optional).")
+    ap.add_argument("--kr",    default=None, help="Korean TTF (optional).")     # for korean ^^
 
-    # NOW OPTIONAL
     ap.add_argument("--corpus", nargs="*",
                     help="Optional UTF-8 text files defining your 'common' set.")
 
     ap.add_argument("--drop-tables", nargs="*", type=str, default=[],
-                    help="Tables to drop from the output font. For Noto, drop vhea and vmtx")
+                    help="Tables to drop from the output font (e.g. vhea vmtx).")
 
     ap.add_argument("--out", default="merged_common.ttf")
     ap.add_argument("--out-name", default="Noto Serif CJK", help="Family name of the output font.")
-    ap.add_argument("--out-subfamily", default="Light", help="Subfamily name of the output font.")
+    ap.add_argument("--out-subfamily", default="Regular", help="Subfamily name of the output font.")
 
     ap.add_argument("--instance-axis", action="append",
-                    help="Instance variable fonts to a static axis position, e.g., wght=400. "
-                         "Repeat for multiple axes. If omitted, the default axis positions are used.")
-    ap.add_argument("--allow-variable-output", action="store_true",
-                    help="Keep variable fonts variable when no instancing is requested.")
+                    help="Instance variable fonts to a static axis, e.g. wght=400.")
+    ap.add_argument("--allow-variable-output", action="store_true")
 
     ap.add_argument("--prefer-order", default=None,
-                    help=("Priority tags. Use 'latin' to refer to all Latin inputs. "
-                          "Example: latin,zh-tw,zh-cn,ja."))
+                    help="Priority tags. Use 'latin' for all Latin inputs. "
+                         "Example: latin,zh-tw,zh-cn,ja,kr")
 
-    ap.add_argument("--add-latin1", action="store_true")
+    ap.add_argument("--add-latin1",        action="store_true")
     ap.add_argument("--add-general-punct", action="store_true",
                     help="Include general punctuation (U+2000-U+206F).")
-    ap.add_argument("--general-punct-owner", choices=["latin", "zh", "zh-tw", "zh-cn", "ja"],
-                    help="Force the general punctuation block to come from a specific font tag.")
-    ap.add_argument("--add-cjk-punct", action="store_true")
-    ap.add_argument("--add-jp-syllabaries", action="store_true")
-    ap.add_argument("--add-halfwidth", action="store_true")
-    ap.add_argument("--add-han-basic", action="store_true",
+    ap.add_argument("--general-punct-owner",
+                    choices=["latin", "zh", "zh-tw", "zh-cn", "ja", "kr"],
+                    help="Force the general punctuation block to a specific font tag.")
+    ap.add_argument("--add-cjk-punct",      action="store_true")
+    ap.add_argument("--add-jp-syllabaries", action="store_true",
+                    help="Include Hiragana + Katakana (U+3040-U+30FF).")
+    ap.add_argument("--add-halfwidth",      action="store_true")
+    ap.add_argument("--add-han-basic",      action="store_true",
                     help="Include broad Han blocks (Unified + Ext A + Compat).")
+    ap.add_argument("--add-hangul",         action="store_true",
+                    help="Include Hangul syllables + Jamo blocks for Korean.")  # for korean ^^
 
     args = ap.parse_args()
 
     latin_tags = [f"latin{i}" for i in range(len(args.latin))]
-
     font_map = {tag: path for tag, path in zip(latin_tags, args.latin)}
-    font_map.update({
-        "zh-tw": args.zh_tw,
-        "zh-cn": args.zh_cn,
-    })
-    if args.ja:
-        font_map["ja"] = args.ja
+
+    # All CJK fonts are optional (added korean ^^)
+    optional = {"zh-tw": args.zh_tw, "zh-cn": args.zh_cn, "ja": args.ja, "kr": args.kr}     
+    for tag, path in optional.items():
+        if path:
+            font_map[tag] = path
 
     if args.prefer_order:
         raw_tokens = [t.strip() for t in args.prefer_order.split(",")]
         order = expand_prefer_order(raw_tokens, latin_tags)
     else:
-        order = latin_tags + ["zh-tw", "zh-cn"] + (["ja"] if args.ja else [])
+        order = latin_tags
+        for tag in ["zh-tw", "zh-cn", "ja", "kr"]:
+            if tag in font_map:
+                order.append(tag)
 
     order = [t for t in order if t in font_map and font_map[t]]
     if not order:
         raise SystemExit("No valid fonts in prefer order.")
 
-    var_flags = validate_fonts(order, font_map)
+    var_flags   = validate_fonts(order, font_map)
     axis_values = parse_axis_values(args.instance_axis)
-
-    target = build_target(args)
+    target      = build_target(args)
     forced_owners = build_forced_owners(args, order)
 
-    support = {tag: get_font_unicode_set(font_map[tag]) for tag in order}
-
+    support  = {tag: get_font_unicode_set(font_map[tag]) for tag in order}
     assigned = {tag: set() for tag in order}
     unassigned = 0
 
     for u in sorted(target):
         owner = forced_owners.get(u)
-        if owner and u not in support.get(owner, ()):  # fallback if owner lacks glyph
+        if owner and u not in support.get(owner, ()):
             owner = None
         if not owner:
             for tag in order:
@@ -421,9 +411,9 @@ def main():
         else:
             unassigned += 1
 
-    tmp_dir = tempfile.mkdtemp(prefix="font_dedup_")
+    tmp_dir       = tempfile.mkdtemp(prefix="font_dedup_")
     instanced_dir = tempfile.mkdtemp(prefix="font_instance_")
-    subset_paths = []
+    subset_paths  = []
     instanced_paths = set()
 
     try:
@@ -435,7 +425,6 @@ def main():
         for tag, path in list(font_map.items()):
             if not var_flags.get(tag):
                 continue
-
             if axis_values:
                 new_path = instantiate_if_variable(path, axis_values, instanced_dir)
             elif args.allow_variable_output:
@@ -443,7 +432,6 @@ def main():
                 continue
             else:
                 new_path = instantiate_if_variable(path, {}, instanced_dir)
-
             if new_path != path:
                 instanced_paths.add(new_path)
                 font_map[tag] = new_path
