@@ -19,7 +19,7 @@ Any missing characters can be reported to us ;-)
 
 # Font Installation
 
-Download the pre-built CJK font [`NotoSerifCJK-Light.ttf`](NotoSerifCJK-Light.ttf) and install the font.
+Download the pre-built CJK font [`NotoSerifCJK-Light.ttf`](NotoSerifCJK-Light.ttf) and install the font. Or [`KoboNotoSerif-Regular(kr).ttf`](KoboNotoSerif-Regular(kr).ttf) for korean.
 
 If you are using Kobo, you can follow this guide to install the font: https://help.kobo.com/hc/en-us/articles/13009477876631-Load-fonts-onto-your-Kobo-eReader
 
